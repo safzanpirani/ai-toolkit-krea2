@@ -1,0 +1,67 @@
+---
+# Rank-128 character LoRA for kij00n on the Krea2 (K2) model, Modal H100.
+# Mirrors the proven kij00n Ideogram4 r128 recipe (LoRA 128/128, adamw8bit,
+# lr 1e-4, 828 steps, EMA 0.99, multi-res) with the krea2 model + bf16 (no
+# quantize) since the 80 GB H100 has headroom the 3090 didn't.
+job: extension
+config:
+  name: "kij00n_krea2_r128"
+  process:
+    - type: 'sd_trainer'
+      training_folder: "/root/ai-toolkit/modal_output"
+      device: cuda:0
+      trigger_word: "kij00n"
+      network:
+        type: "lora"
+        linear: 128
+        linear_alpha: 128
+      save:
+        dtype: float16
+        save_every: 250
+        max_step_saves_to_keep: 2
+        push_to_hub: false
+      datasets:
+        - folder_path: "/root/ai-toolkit/datasets/kij00n_krea2_r128"
+          caption_ext: "txt"
+          caption_dropout_rate: 0.05
+          shuffle_tokens: false
+          cache_latents_to_disk: true
+          # K2's Qwen3-VL text encoder is ~8 GB; encode captions once up front
+          # and free the TE so it doesn't shuffle GPU<->CPU every step.
+          cache_text_embeddings: true
+          resolution: [512, 768, 1024]
+      train:
+        batch_size: 1
+        steps: 828
+        gradient_accumulation: 1
+        train_unet: true
+        train_text_encoder: false
+        gradient_checkpointing: true
+        noise_scheduler: "flowmatch"
+        optimizer: "adamw8bit"
+        lr: 1e-4
+        ema_config:
+          use_ema: true
+          ema_decay: 0.99
+        dtype: bf16
+      model:
+        name_or_path: "/root/krea2-weights/raw.safetensors"
+        arch: "krea2"
+        quantize: false          # H100: bf16, no fake-quant tax
+        quantize_te: false
+        low_vram: false
+        layer_offloading: false
+      sample:
+        sampler: "flowmatch"
+        sample_every: 250
+        width: 1024
+        height: 1024
+        guidance_scale: 4.5
+        sample_steps: 28
+        prompts:
+          - "kij00n, a woman with dark hair and bangs, candid photo standing on a city street at golden hour, medium shot"
+          - "kij00n, a woman with dark hair, studio portrait with soft lighting, looking at the camera, close up"
+          - "kij00n, a woman sitting at a cafe table reading a book, natural window light"
+        neg: ""
+        seed: 42
+        walk_seed: true
